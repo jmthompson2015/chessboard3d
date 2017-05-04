@@ -5,7 +5,7 @@
  * Portions copyright 2016 Jason Tiscione
  * Portions copyright 2013 Chris Oakman
  * Released under MIT license
- * https://github.com/jtiscione/chessboard3js/blob/master/LICENSE
+ * https://github.com/jmthompson2015/chessboard3d/blob/master/LICENSE
  */
 (function()
 {
