@@ -16,7 +16,8 @@
    // ---------------------------------------------------------------------//
    var MINIMUM_THREEJS_REVISION = 71;
    var START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-   var COLUMNS = "abcdefgh".split('');
+   var COLUMNS = "abcdefghijkl".split('');
+   var ROWS = "123456789JKL".split('');
    var LIGHT_POSITIONS = [
         [50, 40, 30],
         [-50, 0, -30] // place at y=0 to avoid double phong reflection off the board
@@ -39,6 +40,8 @@
       sb6: 'bP'
    };
    var ASPECT_RATIO = 0.75;
+   var FILE_COUNT = 8;
+   var RANK_COUNT = 8;
 
    // ---------------------------------------------------------------------//
    //                               ANIMATION                              //
@@ -127,7 +130,7 @@
    function validOrdinarySquare(square)
    {
       if (typeof square !== 'string') return false;
-      return (square.search(/^[a-h][1-8]$/) !== -1);
+      return (square.search(/^[a-l][1-9JKL]$/) !== -1);
    }
 
    function validSpareSquare(square)
@@ -155,16 +158,19 @@
       // we're only interested in position information
       fen = fen.replace(/ .+$/, '');
 
-      // FEN should be 8 sections separated by slashes
+      RANK_COUNT = rankCount(fen);
+      FILE_COUNT = fileCount(fen);
+
+      // FEN should be RANK_COUNT sections separated by slashes
       var chunks = fen.split('/');
-      if (chunks.length !== 8) return false;
+      if (chunks.length !== RANK_COUNT) return false;
 
       // check the piece sections
-      for (var i = 0; i < 8; i++)
+      for (var i = 0; i < RANK_COUNT; i++)
       {
          if (chunks[i] === '' ||
-            chunks[i].length > 8 ||
-            chunks[i].search(/[^kqrbnpKQRNBP1-8]/) !== -1)
+            chunks[i].length > FILE_COUNT ||
+            chunks[i].search(/[^kqrbnpKQRNBP1-9JKL]/) !== -1)
          {
             return false;
          }
@@ -231,8 +237,8 @@
       var rows = fen.split('/');
       var position = {};
 
-      var currentRow = 8;
-      for (var i = 0; i < 8; i++)
+      var rowIndex = RANK_COUNT - 1;
+      for (var i = 0; i < RANK_COUNT; i++)
       {
          var row = rows[i].split('');
          var colIndex = 0;
@@ -241,20 +247,20 @@
          for (var j = 0; j < row.length; j++)
          {
             // number / empty squares
-            if (row[j].search(/[1-8]/) !== -1)
+            if (row[j].search(/[1-9]/) !== -1)
             {
                colIndex += parseInt(row[j], 10);
             }
             // piece
             else
             {
-               var square = COLUMNS[colIndex] + currentRow;
+               var square = COLUMNS[colIndex] + ROWS[rowIndex];
                position[square] = fenToPieceCode(row[j]);
                colIndex++;
             }
          }
 
-         currentRow--;
+         rowIndex--;
       }
 
       return position;
@@ -271,12 +277,12 @@
 
       var fen = '';
 
-      var currentRow = 8;
-      for (var i = 0; i < 8; i++)
+      var rowIndex = RANK_COUNT - 1;
+      for (var i = 0; i < RANK_COUNT; i++)
       {
-         for (var j = 0; j < 8; j++)
+         for (var j = 0; j < FILE_COUNT; j++)
          {
-            var square = COLUMNS[j] + currentRow;
+            var square = COLUMNS[j] + ROWS[rowIndex];
 
             // piece exists
             if (obj.hasOwnProperty(square) === true)
@@ -291,12 +297,12 @@
             }
          }
 
-         if (i !== 7)
+         if (i !== RANK_COUNT - 1)
          {
             fen += '/';
          }
 
-         currentRow--;
+         rowIndex--;
       }
 
       fen = fen.replace(/11111111/g, '8');
@@ -308,6 +314,40 @@
       fen = fen.replace(/11/g, '2');
 
       return fen;
+   }
+
+   function fileCount(fen)
+   {
+      var levels = fen.split("|");
+      var answer = 0;
+
+      for (var l = 0; l < levels.length; l++)
+      {
+         var ranks = levels[l].split("/");
+
+         for (var r = 0; r < ranks.length; r++)
+         {
+            var file = ranks[r];
+            answer = Math.max(answer, file.length);
+         }
+      }
+
+      return answer;
+   }
+
+   function rankCount(fen)
+   {
+      var answer = 0;
+      var levels = fen.split("|");
+
+      for (var l = 0; l < levels.length; l++)
+      {
+         var rank = levels[l];
+         var length = (rank.match(/[/]/g) || []).length + 1;
+         answer = Math.max(answer, length);
+      }
+
+      return answer;
    }
 
    // ---------------------------------------------------------------------//
@@ -934,39 +974,37 @@
             LABELS = [];
             var textGeom;
             var label;
-            var columnLabelText = "abcdefgh".split('');
-            for (var i = 0; i < 8; i++)
+            for (var i = 0; i < FILE_COUNT; i++)
             {
-               textGeom = new THREE.TextGeometry(columnLabelText[i], opts);
+               textGeom = new THREE.TextGeometry(COLUMNS[i], opts);
                textGeom.computeBoundingBox();
                textGeom.computeVertexNormals();
                label = new THREE.Mesh(textGeom, RANK_1_TEXT_MATERIAL);
-               label.position.x = 2 * i - 7 - opts.size / 2;
+               label.position.x = 2 * i - (FILE_COUNT - 1) - opts.size / 2;
                label.position.y = -0.5;
-               label.position.z = -9;
+               label.position.z = -(RANK_COUNT + 1);
                LABELS.push(label);
                SCENE.add(label);
                label = new THREE.Mesh(textGeom, RANK_8_TEXT_MATERIAL);
-               label.position.x = 2 * i - 7 - opts.size / 2;
+               label.position.x = 2 * i - (FILE_COUNT - 1) - opts.size / 2;
                label.position.y = -0.5;
-               label.position.z = 9;
+               label.position.z = (RANK_COUNT + 1);
                LABELS.push(label);
                SCENE.add(label);
             }
-            var rankLabelText = "12345678".split('');
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < RANK_COUNT; i++)
             {
-               textGeom = new THREE.TextGeometry(rankLabelText[i], opts);
+               textGeom = new THREE.TextGeometry(ROWS[i], opts);
                label = new THREE.Mesh(textGeom, FILE_A_TEXT_MATERIAL);
-               label.position.x = -9;
+               label.position.x = -(FILE_COUNT + 1);
                label.position.y = -0.5;
-               label.position.z = -7 - opts.size / 2 + 2 * (7 - i);
+               label.position.z = -(RANK_COUNT - 1) - opts.size / 2 + 2 * ((RANK_COUNT - 1) - i);
                LABELS.push(label);
                SCENE.add(label);
                label = new THREE.Mesh(textGeom, FILE_H_TEXT_MATERIAL);
-               label.position.x = 9;
+               label.position.x = (FILE_COUNT + 1);
                label.position.y = -0.5;
-               label.position.z = -7 - opts.size / 2 + 2 * (7 - i);
+               label.position.z = -(RANK_COUNT - 1) - opts.size / 2 + 2 * ((RANK_COUNT - 1) - i);
                LABELS.push(label);
                SCENE.add(label);
             }
@@ -976,13 +1014,13 @@
       function buildBoard()
       {
          var i;
-         for (i = 0; i < 8; i++)
+         for (i = 0; i < RANK_COUNT; i++)
          {
-            var tz = 3.5 * SQUARE_SIZE - (SQUARE_SIZE * i);
-            for (var j = 0; j < 8; j++)
+            var tz = (RANK_COUNT / 2 - 0.5) * SQUARE_SIZE - (SQUARE_SIZE * i);
+            for (var j = 0; j < FILE_COUNT; j++)
             {
-               var tx = (SQUARE_SIZE * j) - 3.5 * SQUARE_SIZE;
-               var square = 'abcdefgh'.charAt(j) + (i + 1);
+               var tx = (SQUARE_SIZE * j) - (FILE_COUNT / 2 - 0.5) * SQUARE_SIZE;
+               var square = COLUMNS[j] + ROWS[i];
                var squareMaterial = (((i % 2) === 0) ^ ((j % 2) === 0) ? lightSquareMaterial : darkSquareMaterial);
                var squareGeometry = new THREE.BoxGeometry(2, 0.5, 2);
                var squareMesh = new THREE.Mesh(squareGeometry, squareMaterial.clone());
@@ -1214,21 +1252,22 @@
          if (validSpareSquare(square))
          {
             var u = square.charCodeAt(2) - '1'.charCodeAt(0);
-            tx = SQUARE_SIZE * (4 * u - 10) / 3;
+            tx = SQUARE_SIZE * ((FILE_COUNT / 2) * u - 10) / 3;
             if (square.charAt(1) == 'w')
             {
-               tz = 5 * SQUARE_SIZE;
+               tz = (RANK_COUNT / 2 + 1) * SQUARE_SIZE;
 
             }
             else if (square.charAt(1) == 'b')
             {
-               tz = -5 * SQUARE_SIZE;
+               tz = -(RANK_COUNT / 2 + 1) * SQUARE_SIZE;
             }
          }
          else if (validOrdinarySquare(square))
          {
-            tx = SQUARE_SIZE * (square.charCodeAt(0) - 'a'.charCodeAt(0)) - 3.5 * SQUARE_SIZE;
-            tz = 3.5 * SQUARE_SIZE - SQUARE_SIZE * (square.charCodeAt(1) - '1'.charCodeAt(0));
+            tx = SQUARE_SIZE * (square.charCodeAt(0) - 'a'.charCodeAt(0)) - (FILE_COUNT / 2 - 0.5) * SQUARE_SIZE;
+            var start = "JKL".indexOf(square.charAt(1)) < 0 ? '1' : 'A';
+            tz = (RANK_COUNT / 2 - 0.5) * SQUARE_SIZE - SQUARE_SIZE * (square.charCodeAt(1) - start.charCodeAt(0));
          }
          return {
             x: tx,
@@ -1278,11 +1317,11 @@
          var squares = [];
          var i, j;
          // calculate distance of all squares
-         for (i = 0; i < 8; i++)
+         for (i = 0; i < FILE_COUNT; i++)
          {
-            for (j = 0; j < 8; j++)
+            for (j = 0; j < RANK_COUNT; j++)
             {
-               var s = COLUMNS[i] + (j + 1);
+               var s = COLUMNS[i] + ROWS[j];
 
                // skip the square we're starting from
                if (square === s) continue;
@@ -1440,11 +1479,11 @@
          {
             // Return "spare square" code, e.g. sw1, sb2, sw3 etc.
             var colorcode;
-            if (z_coord >= 4 * SQUARE_SIZE && z_coord <= 6 * SQUARE_SIZE)
+            if (z_coord >= (RANK_COUNT / 2) * SQUARE_SIZE && z_coord <= (RANK_COUNT / 2 + 2) * SQUARE_SIZE)
             {
                colorcode = 'w';
             }
-            else if (z_coord <= -4 * SQUARE_SIZE && z_coord >= -6 * SQUARE_SIZE)
+            else if (z_coord <= -(RANK_COUNT / 2) * SQUARE_SIZE && z_coord >= -(RANK_COUNT / 2 + 2) * SQUARE_SIZE)
             {
                colorcode = 'b';
             }
@@ -2392,12 +2431,12 @@
                   }
                   LABELS[i].lookAt(new THREE.Vector3(100 * x, 100 * y, 100 * z));
                }
-               if (x <= -8)
+               if (x <= -FILE_COUNT)
                {
                   FILE_A_TEXT_MATERIAL.opacity = 1;
                   FILE_H_TEXT_MATERIAL.opacity = 0;
                }
-               else if (x >= 8)
+               else if (x >= FILE_COUNT)
                {
                   FILE_A_TEXT_MATERIAL.opacity = 0;
                   FILE_H_TEXT_MATERIAL.opacity = 1;
@@ -2406,12 +2445,12 @@
                {
                   FILE_A_TEXT_MATERIAL.opacity = FILE_H_TEXT_MATERIAL.opacity = 1;
                }
-               if (z <= -8)
+               if (z <= -RANK_COUNT)
                {
                   RANK_1_TEXT_MATERIAL.opacity = 1;
                   RANK_8_TEXT_MATERIAL.opacity = 0;
                }
-               else if (z >= 8)
+               else if (z >= RANK_COUNT)
                {
                   RANK_1_TEXT_MATERIAL.opacity = 0;
                   RANK_8_TEXT_MATERIAL.opacity = 1;
@@ -2460,4 +2499,6 @@
    window.ChessBoard3.webGLEnabled = webGLEnabled;
    window.ChessBoard3.fenToObj = fenToObj;
    window.ChessBoard3.objToFen = objToFen;
+   window.ChessBoard3.fileCount = fileCount;
+   window.ChessBoard3.rankCount = rankCount;
 })();
