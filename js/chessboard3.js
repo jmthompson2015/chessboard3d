@@ -18,11 +18,13 @@
    var START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
    var COLUMNS = "abcdefghijkl".split('');
    var ROWS = "123456789JKL".split('');
+   var LEVELS = "ABCDEFGHIJKL".split('');
    var LIGHT_POSITIONS = [
         [50, 40, 30],
         [-50, 0, -30] // place at y=0 to avoid double phong reflection off the board
     ];
    var SQUARE_SIZE = 2;
+   var SQUARE_HEIGHT = 4;
    var CAMERA_POLAR_ANGLE = Math.PI / 4;
    var CAMERA_DISTANCE = 18.25;
    var SPARE_POSITION = {
@@ -42,6 +44,7 @@
    var ASPECT_RATIO = 0.75;
    var FILE_COUNT = 8;
    var RANK_COUNT = 8;
+   var LEVEL_COUNT = 1;
 
    // ---------------------------------------------------------------------//
    //                               ANIMATION                              //
@@ -130,7 +133,7 @@
    function validOrdinarySquare(square)
    {
       if (typeof square !== 'string') return false;
-      return (square.search(/^[a-l][1-9JKL]$/) !== -1);
+      return (square.search(/^[a-l][1-9JKL][A-L]?$/) !== -1);
    }
 
    function validSpareSquare(square)
@@ -145,7 +148,7 @@
       {
          return false;
       }
-      return (code.search(/^[bw][KQRNBP]$/) !== -1);
+      return (code.search(/^[bw][KQRNBPU]$/) !== -1);
    }
 
    function validFen(fen)
@@ -158,21 +161,30 @@
       // we're only interested in position information
       fen = fen.replace(/ .+$/, '');
 
+      LEVEL_COUNT = levelCount(fen);
       RANK_COUNT = rankCount(fen);
       FILE_COUNT = fileCount(fen);
+      console.log("FILE_COUNT = " + FILE_COUNT + " RANK_COUNT = " + RANK_COUNT + " LEVEL_COUNT = " + LEVEL_COUNT);
 
-      // FEN should be RANK_COUNT sections separated by slashes
-      var chunks = fen.split('/');
-      if (chunks.length !== RANK_COUNT) return false;
+      // FEN should be LEVEL_COUNT sections separated by pipes
+      var chunks0 = fen.split('|');
+      if (chunks0.length !== LEVEL_COUNT) return false;
 
-      // check the piece sections
-      for (var i = 0; i < RANK_COUNT; i++)
+      for (var l = 0; l < LEVEL_COUNT; l++)
       {
-         if (chunks[i] === '' ||
-            chunks[i].length > FILE_COUNT ||
-            chunks[i].search(/[^kqrbnpKQRNBP1-9JKL]/) !== -1)
+         // FEN should be RANK_COUNT sections separated by slashes
+         var chunks = chunks0[l].split('/');
+         if (chunks.length !== RANK_COUNT) return false;
+
+         // check the piece sections
+         for (var i = 0; i < RANK_COUNT; i++)
          {
-            return false;
+            if (chunks[i] === '' ||
+               chunks[i].length > FILE_COUNT ||
+               chunks[i].search(/[^kqrbnpuKQRNBPU1-9]/) !== -1)
+            {
+               return false;
+            }
          }
       }
 
@@ -234,33 +246,40 @@
       // we're only interested in position information
       fen = fen.replace(/ .+$/, '');
 
-      var rows = fen.split('/');
+      var levels = fen.split('|');
       var position = {};
 
-      var rowIndex = RANK_COUNT - 1;
-      for (var i = 0; i < RANK_COUNT; i++)
+      var levelIndex = LEVEL_COUNT - 1;
+      for (var l = 0; l < LEVEL_COUNT; l++)
       {
-         var row = rows[i].split('');
-         var colIndex = 0;
-
-         // loop through each character in the FEN section
-         for (var j = 0; j < row.length; j++)
+         var rows = levels[l].split('/');
+         var rowIndex = RANK_COUNT - 1;
+         for (var i = 0; i < RANK_COUNT; i++)
          {
-            // number / empty squares
-            if (row[j].search(/[1-9]/) !== -1)
+            var row = rows[i].split('');
+            var colIndex = 0;
+
+            // loop through each character in the FEN section
+            for (var j = 0; j < row.length; j++)
             {
-               colIndex += parseInt(row[j], 10);
+               // number / empty squares
+               if (row[j].search(/[1-9]/) !== -1)
+               {
+                  colIndex += parseInt(row[j], 10);
+               }
+               // piece
+               else
+               {
+                  var square = squareName(colIndex, rowIndex, levelIndex);
+                  position[square] = fenToPieceCode(row[j]);
+                  colIndex++;
+               }
             }
-            // piece
-            else
-            {
-               var square = COLUMNS[colIndex] + ROWS[rowIndex];
-               position[square] = fenToPieceCode(row[j]);
-               colIndex++;
-            }
+
+            rowIndex--;
          }
 
-         rowIndex--;
+         levelIndex--;
       }
 
       return position;
@@ -277,32 +296,43 @@
 
       var fen = '';
 
-      var rowIndex = RANK_COUNT - 1;
-      for (var i = 0; i < RANK_COUNT; i++)
+      var levelIndex = LEVEL_COUNT - 1;
+      for (var l = 0; l < LEVEL_COUNT; l++)
       {
-         for (var j = 0; j < FILE_COUNT; j++)
+         var rowIndex = RANK_COUNT - 1;
+         for (var i = 0; i < RANK_COUNT; i++)
          {
-            var square = COLUMNS[j] + ROWS[rowIndex];
-
-            // piece exists
-            if (obj.hasOwnProperty(square) === true)
+            for (var j = 0; j < FILE_COUNT; j++)
             {
-               fen += pieceCodeToFen(obj[square]);
+               var square = squareName(j, rowIndex, levelIndex);
+
+               // piece exists
+               if (obj.hasOwnProperty(square) === true)
+               {
+                  fen += pieceCodeToFen(obj[square]);
+               }
+
+               // empty space
+               else
+               {
+                  fen += '1';
+               }
             }
 
-            // empty space
-            else
+            if (i !== RANK_COUNT - 1)
             {
-               fen += '1';
+               fen += '/';
             }
+
+            rowIndex--;
          }
 
-         if (i !== RANK_COUNT - 1)
+         if (l !== LEVEL_COUNT - 1)
          {
-            fen += '/';
+            fen += '|';
          }
 
-         rowIndex--;
+         levelIndex--;
       }
 
       fen = fen.replace(/11111111/g, '8');
@@ -314,6 +344,38 @@
       fen = fen.replace(/11/g, '2');
 
       return fen;
+   }
+
+   // returns the distance between two squares
+   function squareDistance(s1, s2)
+   {
+      s1 = s1.split('');
+      var s1x = COLUMNS.indexOf(s1[0]) + 1;
+      var s1y = ROWS.indexOf(s1[1]) + 1;
+      var s1z = LEVELS.indexOf(s1[2]) + 1;
+
+      s2 = s2.split('');
+      var s2x = COLUMNS.indexOf(s2[0]) + 1;
+      var s2y = ROWS.indexOf(s2[1]) + 1;
+      var s2z = LEVELS.indexOf(s2[2]) + 1;
+
+      var xDelta = Math.abs(s1x - s2x);
+      var yDelta = Math.abs(s1y - s2y);
+      var zDelta = Math.abs(s1z - s2z);
+
+      return Math.max(Math.max(xDelta, yDelta), zDelta);
+   }
+
+   function squareName(fileIndex, rankIndex, levelIndex)
+   {
+      var answer = COLUMNS[fileIndex] + ROWS[rankIndex];
+
+      if (levelIndex !== undefined && LEVEL_COUNT > 1)
+      {
+         answer += LEVELS[levelIndex];
+      }
+
+      return answer;
    }
 
    function fileCount(fen)
@@ -333,6 +395,11 @@
       }
 
       return answer;
+   }
+
+   function levelCount(fen)
+   {
+      return (fen.match(/[|]/g) || []).length + 1;
    }
 
    function rankCount(fen)
@@ -922,7 +989,6 @@
 
       function buildPieceMesh(square, piece)
       {
-
          var coords = squareCoordinates(square);
 
          var color = piece.charAt(0);
@@ -942,6 +1008,7 @@
          geometry = GEOMETRIES[species];
          mesh = new THREE.Mesh(geometry, material);
          mesh.position.x = coords.x;
+         mesh.position.y = coords.y;
          mesh.position.z = coords.z;
          if (color === 'w')
          {
@@ -953,7 +1020,6 @@
 
       function addLabelsToScene()
       {
-
          var loader = new THREE.FontLoader();
 
          var url = null;
@@ -999,13 +1065,13 @@
                textGeom.computeVertexNormals();
                label = new THREE.Mesh(textGeom, RANK_1_TEXT_MATERIAL);
                label.position.x = 2 * i - (FILE_COUNT - 1) - opts.size / 2;
-               label.position.y = -0.5;
+               label.position.y = -(LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - 0.5;
                label.position.z = -(RANK_COUNT + 1);
                LABELS.push(label);
                SCENE.add(label);
                label = new THREE.Mesh(textGeom, RANK_8_TEXT_MATERIAL);
                label.position.x = 2 * i - (FILE_COUNT - 1) - opts.size / 2;
-               label.position.y = -0.5;
+               label.position.y = -(LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - 0.5;
                label.position.z = (RANK_COUNT + 1);
                LABELS.push(label);
                SCENE.add(label);
@@ -1015,40 +1081,65 @@
                textGeom = new THREE.TextGeometry(ROWS[i], opts);
                label = new THREE.Mesh(textGeom, FILE_A_TEXT_MATERIAL);
                label.position.x = -(FILE_COUNT + 1);
-               label.position.y = -0.5;
+               label.position.y = -(LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - 0.5;
                label.position.z = -(RANK_COUNT - 1) - opts.size / 2 + 2 * ((RANK_COUNT - 1) - i);
                LABELS.push(label);
                SCENE.add(label);
                label = new THREE.Mesh(textGeom, FILE_H_TEXT_MATERIAL);
                label.position.x = (FILE_COUNT + 1);
-               label.position.y = -0.5;
+               label.position.y = -(LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - 0.5;
                label.position.z = -(RANK_COUNT - 1) - opts.size / 2 + 2 * ((RANK_COUNT - 1) - i);
                LABELS.push(label);
                SCENE.add(label);
+            }
+
+            if (LEVEL_COUNT > 1)
+            {
+               for (i = 0; i < LEVEL_COUNT; i++)
+               {
+                  textGeom = new THREE.TextGeometry(LEVELS[i], opts);
+                  textGeom.computeBoundingBox();
+                  textGeom.computeVertexNormals();
+                  label = new THREE.Mesh(textGeom, RANK_1_TEXT_MATERIAL);
+                  label.position.x = -(FILE_COUNT + 1);
+                  label.position.y = (SQUARE_HEIGHT * i) - (LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - opts.size / 2;
+                  label.position.z = -(RANK_COUNT + 1);
+                  LABELS.push(label);
+                  SCENE.add(label);
+                  label = new THREE.Mesh(textGeom, RANK_8_TEXT_MATERIAL);
+                  label.position.x = (FILE_COUNT + 1);
+                  label.position.y = (SQUARE_HEIGHT * i) - (LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - opts.size / 2;
+                  label.position.z = (RANK_COUNT + 1);
+                  LABELS.push(label);
+                  SCENE.add(label);
+               }
             }
          });
       }
 
       function buildBoard()
       {
-         var i;
-         for (i = 0; i < RANK_COUNT; i++)
+         for (var l = 0; l < LEVEL_COUNT; l++)
          {
-            var tz = (RANK_COUNT / 2 - 0.5) * SQUARE_SIZE - (SQUARE_SIZE * i);
-            for (var j = 0; j < FILE_COUNT; j++)
+            var ty = (SQUARE_HEIGHT * l) - (LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT - 0.25;
+            for (var i = 0; i < RANK_COUNT; i++)
             {
-               var tx = (SQUARE_SIZE * j) - (FILE_COUNT / 2 - 0.5) * SQUARE_SIZE;
-               var square = COLUMNS[j] + ROWS[i];
-               var squareMaterial = (((i % 2) === 0) ^ ((j % 2) === 0) ? lightSquareMaterial : darkSquareMaterial);
-               var squareGeometry = new THREE.BoxGeometry(2, 0.5, 2);
-               var squareMesh = new THREE.Mesh(squareGeometry, squareMaterial.clone());
-               squareMesh.position.set(tx, -0.25, tz);
-               squareGeometry.computeFaceNormals();
-               squareGeometry.computeVertexNormals();
-               squareMesh.receiveShadow = true;
-               SQUARE_MESH_IDS[square] = squareMesh.id;
-               squareMesh.tag = square;
-               SCENE.add(squareMesh);
+               var tz = (RANK_COUNT / 2 - 0.5) * SQUARE_SIZE - (SQUARE_SIZE * i);
+               for (var j = 0; j < FILE_COUNT; j++)
+               {
+                  var tx = (SQUARE_SIZE * j) - (FILE_COUNT / 2 - 0.5) * SQUARE_SIZE;
+                  var square = squareName(j, i);
+                  var squareMaterial = (((i % 2) === 0) ^ ((j % 2) === 0) ? lightSquareMaterial : darkSquareMaterial);
+                  var squareGeometry = new THREE.BoxGeometry(2, 0.5, 2);
+                  var squareMesh = new THREE.Mesh(squareGeometry, squareMaterial.clone());
+                  squareMesh.position.set(tx, ty, tz);
+                  squareGeometry.computeFaceNormals();
+                  squareGeometry.computeVertexNormals();
+                  squareMesh.receiveShadow = true;
+                  SQUARE_MESH_IDS[square] = squareMesh.id;
+                  squareMesh.tag = square;
+                  SCENE.add(squareMesh);
+               }
             }
          }
 
@@ -1267,6 +1358,7 @@
       function squareCoordinates(square)
       {
          var tx, tz;
+         var ty = 0;
          if (validSpareSquare(square))
          {
             var u = square.charCodeAt(2) - '1'.charCodeAt(0);
@@ -1274,7 +1366,6 @@
             if (square.charAt(1) == 'w')
             {
                tz = (RANK_COUNT / 2 + 1) * SQUARE_SIZE;
-
             }
             else if (square.charAt(1) == 'b')
             {
@@ -1286,9 +1377,14 @@
             tx = SQUARE_SIZE * (square.charCodeAt(0) - 'a'.charCodeAt(0)) - (FILE_COUNT / 2 - 0.5) * SQUARE_SIZE;
             var start = "JKL".indexOf(square.charAt(1)) < 0 ? '1' : 'A';
             tz = (RANK_COUNT / 2 - 0.5) * SQUARE_SIZE - SQUARE_SIZE * (square.charCodeAt(1) - start.charCodeAt(0));
+            if (LEVEL_COUNT > 1)
+            {
+               ty = SQUARE_HEIGHT * (square.charCodeAt(2) - 'A'.charCodeAt(0)) - (LEVEL_COUNT / 2 - 0.5) * SQUARE_HEIGHT;
+            }
          }
          return {
             x: tx,
+            y: ty,
             z: tz,
          };
       }
@@ -1311,24 +1407,6 @@
          return position[sq];
       }
 
-      // returns the distance between two squares
-      function squareDistance(s1, s2)
-      {
-         s1 = s1.split('');
-         var s1x = COLUMNS.indexOf(s1[0]) + 1;
-         var s1y = parseInt(s1[1], 10);
-
-         s2 = s2.split('');
-         var s2x = COLUMNS.indexOf(s2[0]) + 1;
-         var s2y = parseInt(s2[1], 10);
-
-         var xDelta = Math.abs(s1x - s2x);
-         var yDelta = Math.abs(s1y - s2y);
-
-         if (xDelta >= yDelta) return xDelta;
-         return yDelta;
-      }
-
       // returns an array of closest squares from square
       function createRadius(square)
       {
@@ -1339,7 +1417,7 @@
          {
             for (j = 0; j < RANK_COUNT; j++)
             {
-               var s = COLUMNS[i] + ROWS[j];
+               var s = squareName(i, j);
 
                // skip the square we're starting from
                if (square === s) continue;
@@ -2517,6 +2595,9 @@
    window.ChessBoard3.webGLEnabled = webGLEnabled;
    window.ChessBoard3.fenToObj = fenToObj;
    window.ChessBoard3.objToFen = objToFen;
+   window.ChessBoard3.squareDistance = squareDistance;
+   window.ChessBoard3.squareName = squareName;
    window.ChessBoard3.fileCount = fileCount;
    window.ChessBoard3.rankCount = rankCount;
+   window.ChessBoard3.levelCount = levelCount;
 })();
