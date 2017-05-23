@@ -356,7 +356,6 @@
 
    window.ChessBoard3 = window.ChessBoard3 || function(containerElOrId, cfg)
    {
-
       cfg = cfg ||
       {};
 
@@ -368,6 +367,11 @@
       var widget = {};
 
       var RENDERER, SCENE, LABELS, CAMERA, CAMERA_CONTROLS;
+
+      if (cfg.hasOwnProperty('cameraDistance') && typeof cfg.cameraDistance === 'number')
+      {
+         CAMERA_DISTANCE = cfg.cameraDistance;
+      }
 
       var CAMERA_POSITION_WHITE = new THREE.Vector3(0,
          CAMERA_DISTANCE * Math.cos(CAMERA_POLAR_ANGLE),
@@ -432,9 +436,16 @@
       {
          darkSquareColor = cfg.darkSquareColor;
       }
+      var darkSquareOpacity = 1.0;
+      if (cfg.hasOwnProperty('darkSquareOpacity') && typeof cfg.darkSquareOpacity === 'number')
+      {
+         darkSquareOpacity = cfg.darkSquareOpacity;
+      }
       var darkSquareMaterial = new THREE.MeshPhongMaterial(
       {
-         color: new THREE.Color(darkSquareColor)
+         color: new THREE.Color(darkSquareColor),
+         transparent: true,
+         opacity: darkSquareOpacity,
       });
 
       var lightSquareColor = 0xf0d9b5;
@@ -442,9 +453,16 @@
       {
          lightSquareColor = cfg.lightSquareColor;
       }
+      var lightSquareOpacity = 1.0;
+      if (cfg.hasOwnProperty('lightSquareOpacity') && typeof cfg.lightSquareOpacity === 'number')
+      {
+         lightSquareOpacity = cfg.lightSquareOpacity;
+      }
       var lightSquareMaterial = new THREE.MeshPhongMaterial(
       {
-         color: new THREE.Color(lightSquareColor)
+         color: new THREE.Color(lightSquareColor),
+         transparent: true,
+         opacity: lightSquareOpacity,
       });
       /*
       darkSquareMaterial.specularMap = THREE.ImageUtils.loadTexture("img/iris.png", undefined, function() {SPECULAR_MAPS_PENDING--;};);
