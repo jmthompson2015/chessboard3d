@@ -16,16 +16,16 @@
     <h1>chessboard3.js</h1>
   </header>
 
-  <div id="board2" style="width: 600px; height: 450px">
+  <div id="board" style="width: 600px; height: 450px">
     <h2 class="vertical-align">LOADING...</h2>
   </div>
 
   <script>
-    var board2 = new ChessBoard3('board2',
+    var board = new ChessBoard3('board',
     {
-      position: "rnbqkb/pppppp/6/6/6/6/6/6/PPPPPP/RNBQKB",
       draggable: true,
       fontData: "../assets/fonts/helvetiker_regular.typeface.json",
+      position: "rnbqkb/pppppp/6/6/6/6/6/6/PPPPPP/RNBQKB",
       onChange: function(oldPos, newPos)
       {
         console.log(ChessBoard3.objToFen(newPos));
